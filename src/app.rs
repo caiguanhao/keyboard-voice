@@ -2,6 +2,7 @@ use crate::{
     audio::AudioPlayer,
     keymap::{modifier_spec, spec_for_key, spec_for_shifted_key, spec_for_text, KeySpec, Modifier},
     settings::{system_prefers_dark, Settings, ThemeMode},
+    syskeys::{self, SysKeys},
 };
 use eframe::egui::{
     self, Align2, Color32, Event, FontId, Key, Layout, Pos2, RichText, Sense, Stroke, StrokeKind,
@@ -12,6 +13,7 @@ use std::time::{Duration, Instant};
 pub struct KeyboardApp {
     settings: Settings,
     audio: AudioPlayer,
+    syskeys: SysKeys,
     current: Option<KeySpec>,
     pulse_until: Instant,
     last_modifiers: egui::Modifiers,
@@ -22,16 +24,19 @@ pub struct KeyboardApp {
 
 impl KeyboardApp {
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        let (settings, warning) = Settings::load();
+        let (settings, settings_warning) = Settings::load();
+        let (syskeys, syskeys_warning) = syskeys::start();
+        let warning = settings_warning.or(syskeys_warning);
         Self {
             settings,
             audio: AudioPlayer::new(),
+            syskeys,
             current: None,
             pulse_until: Instant::now(),
             last_modifiers: egui::Modifiers::default(),
             system_dark: system_prefers_dark(),
             next_theme_check: Instant::now() + Duration::from_secs(2),
-            status: warning.map(|message| (message, Instant::now() + Duration::from_secs(5))),
+            status: warning.map(|message| (message, Instant::now() + Duration::from_secs(8))),
         }
     }
 
@@ -54,7 +59,7 @@ impl KeyboardApp {
     }
 
     fn process_input(&mut self, ctx: &egui::Context) {
-        let (keys, text_keys, modifiers, should_quit) = ctx.input(|input| {
+        let (keys, text_keys, modifiers, should_quit, focused) = ctx.input(|input| {
             let mut keys = Vec::new();
             let mut text_keys = Vec::new();
             let mut physical_keys = Vec::new();
@@ -95,12 +100,21 @@ impl KeyboardApp {
                     }
                 }
             }
-            (keys, text_keys, input.modifiers, should_quit)
+            (keys, text_keys, input.modifiers, should_quit, input.focused)
         });
 
         if should_quit {
             ctx.send_viewport_cmd(ViewportCommand::Close);
             return;
+        }
+
+        // Keys egui never reports (PrtSc/ScrLk/Pause/Caps/Num/Win/Fn) arrive
+        // from the evdev reader on Linux. evdev sees the keyboard regardless
+        // of window focus, so only react while this window is focused.
+        if focused {
+            while let Some(spec) = self.syskeys.try_recv() {
+                self.show_key(spec);
+            }
         }
 
         // Text events contain the final character after keyboard layout and

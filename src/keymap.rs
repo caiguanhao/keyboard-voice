@@ -114,12 +114,12 @@ pub fn spec_for_key(key: Key) -> Option<KeySpec> {
         Key::Backspace => spec("backspace", "Backspace", "Backspace"),
         Key::Enter => spec("enter", "Enter", "Enter"),
         Key::Space => spec("space", "Space", "Space"),
-        Key::Insert => spec("insert", "Insert", "Insert"),
-        Key::Delete => spec("delete", "Delete", "Delete"),
+        Key::Insert => spec("insert", "Ins", "Insert"),
+        Key::Delete => spec("delete", "Del", "Delete"),
         Key::Home => spec("home", "Home", "Home"),
         Key::End => spec("end", "End", "End"),
-        Key::PageUp => spec("page_up", "Page Up", "Page up"),
-        Key::PageDown => spec("page_down", "Page Down", "Page down"),
+        Key::PageUp => spec("page_up", "PgUp", "Page up"),
+        Key::PageDown => spec("page_down", "PgDn", "Page down"),
         Key::Copy => spec("copy", "Copy", "Copy"),
         Key::Cut => spec("cut", "Cut", "Cut"),
         Key::Paste => spec("paste", "Paste", "Paste"),
@@ -260,6 +260,34 @@ pub fn modifier_spec(modifier: Modifier) -> KeySpec {
     }
 }
 
+/// Keys that egui/winit never report: they have no `Key` variant, and the
+/// Super/Windows key is hidden from `Modifiers` outside macOS. On Linux they
+/// are read from evdev instead (see `syskeys`).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SystemKey {
+    PrintScreen,
+    ScrollLock,
+    Pause,
+    CapsLock,
+    NumLock,
+    Super,
+    Function,
+}
+
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn system_key_spec(key: SystemKey) -> KeySpec {
+    match key {
+        SystemKey::PrintScreen => spec("print_screen", "PrtSc", "Print screen"),
+        SystemKey::ScrollLock => spec("scroll_lock", "ScrLk", "Scroll lock"),
+        SystemKey::Pause => spec("pause", "Pause", "Pause"),
+        SystemKey::CapsLock => spec("caps_lock", "Caps", "Caps lock"),
+        SystemKey::NumLock => spec("num_lock", "Num", "Num lock"),
+        SystemKey::Super => spec("super", "Win", "Windows"),
+        SystemKey::Function => spec("fn_key", "Fn", "Function"),
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum Modifier {
     Shift,
@@ -306,5 +334,31 @@ mod tests {
             spec_for_shifted_key(Key::Comma).unwrap().speech,
             "Less than"
         );
+    }
+
+    #[test]
+    fn navigation_keys_use_short_labels() {
+        assert_eq!(spec_for_key(Key::Insert).unwrap().label, "Ins");
+        assert_eq!(spec_for_key(Key::Delete).unwrap().label, "Del");
+        assert_eq!(spec_for_key(Key::PageUp).unwrap().label, "PgUp");
+        assert_eq!(spec_for_key(Key::PageDown).unwrap().label, "PgDn");
+        // Speech stays full so the spoken name is unambiguous.
+        assert_eq!(spec_for_key(Key::Insert).unwrap().speech, "Insert");
+        assert_eq!(spec_for_key(Key::PageDown).unwrap().speech, "Page down");
+    }
+
+    #[test]
+    fn system_keys_have_display_and_speech_names() {
+        let print_screen = system_key_spec(SystemKey::PrintScreen);
+        assert_eq!(print_screen.id, "print_screen");
+        assert_eq!(print_screen.label, "PrtSc");
+        assert_eq!(print_screen.speech, "Print screen");
+        assert_eq!(system_key_spec(SystemKey::ScrollLock).label, "ScrLk");
+        assert_eq!(system_key_spec(SystemKey::Pause).speech, "Pause");
+        assert_eq!(system_key_spec(SystemKey::CapsLock).speech, "Caps lock");
+        assert_eq!(system_key_spec(SystemKey::NumLock).label, "Num");
+        assert_eq!(system_key_spec(SystemKey::Super).label, "Win");
+        assert_eq!(system_key_spec(SystemKey::Super).speech, "Windows");
+        assert_eq!(system_key_spec(SystemKey::Function).id, "fn_key");
     }
 }

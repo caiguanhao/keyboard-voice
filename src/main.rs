@@ -2,6 +2,7 @@ mod app;
 mod audio;
 mod keymap;
 mod settings;
+mod syskeys;
 
 fn main() -> eframe::Result<()> {
     let mut viewport = eframe::egui::ViewportBuilder::default()

@@ -134,6 +134,13 @@ const AUDIO_IDS: &[&str] = &[
     "arrow_left",
     "arrow_right",
     "browser_back",
+    "print_screen",
+    "scroll_lock",
+    "pause",
+    "caps_lock",
+    "num_lock",
+    "super",
+    "fn_key",
 ];
 
 const DEFAULT_PIPER_MODEL: &str = "models/en_US-lessac-medium.onnx";
@@ -639,6 +646,13 @@ fn phrase_for_id(id: &str) -> String {
         "browser_back" => "Back".into(),
         "page_up" => "Page up".into(),
         "page_down" => "Page down".into(),
+        "print_screen" => "Print screen".into(),
+        "scroll_lock" => "Scroll lock".into(),
+        "pause" => "Pause".into(),
+        "caps_lock" => "Caps lock".into(),
+        "num_lock" => "Num lock".into(),
+        "super" => "Windows".into(),
+        "fn_key" => "Function".into(),
         "backspace" => "Backspace".into(),
         "escape" => "Escape".into(),
         "space" => "Space".into(),

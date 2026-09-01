@@ -143,6 +143,8 @@ docker buildx build \
 
 生成的 `dist/keyboard-voice` 可复制到 Pi。Pi 需要运行图形桌面会话，并提供 ALSA 音频设备。
 
+PrtSc、ScrLk、Pause、Caps Lock、Num Lock、Win 等特殊键直接通过 evdev 读取 `/dev/input`，与桌面使用 X11 还是 Wayland 无关，但要求运行用户在 `input` 组中（Raspberry Pi OS 默认用户已在该组；否则执行 `sudo usermod -aG input $USER` 并重新登录）。权限不足时程序照常运行，只是这些键没有响应，启动时会显示提示。
+
 也可以构建运行镜像：
 
 ```bash
@@ -169,8 +171,9 @@ chmod +x keyboard-voice-v0.1.0-linux-aarch64
 ## 操作
 
 - 按下任意标准键即可显示并朗读；自动重复事件会被忽略。
+- 支持 PrtSc、ScrLk、Pause、Caps Lock、Num Lock、Win 键（Linux 上经 evdev 读取）。Fn 键只有在键盘硬件本身会上报扫描码时才有响应。
 - 键名上方会显示一个随主题变化的立体键帽图标。
-- `Esc` 朗读为 `Escape`。
+- `Esc` 朗读为 `Escape`；`Insert`、`Delete`、`Page Up`、`Page Down` 显示为 `Ins`、`Del`、`PgUp`、`PgDn`。
 - macOS 的 Command 键显示并朗读为 `Command`。
 - `Ctrl+Q` 退出程序。
 - 右上角按钮切换 Auto、Light、Dark，选择会保存到用户配置目录。
