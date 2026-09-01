@@ -1,5 +1,7 @@
 # Keyboard Voice
 
+[![release](https://github.com/caiguanhao/keyboard-voice/actions/workflows/release.yml/badge.svg)](https://github.com/caiguanhao/keyboard-voice/actions/workflows/release.yml)
+
 全屏键盘可视化与离线英文语音程序，面向 Raspberry Pi OS 64-bit，也可在 macOS 上以普通窗口测试。
 
 ## 本机运行
@@ -145,6 +147,23 @@ docker buildx build \
 
 ```bash
 docker buildx build --platform linux/arm64 --target runtime -t keyboard-voice:arm64 --load .
+```
+
+### GitHub Actions 构建并发布
+
+推送以 `v` 开头的 tag 会触发 [release 工作流](.github/workflows/release.yml)：在 GitHub 的 ARM64 runner 上用 `rust:bookworm` 容器原生编译（与 Raspberry Pi OS Bookworm 的 glibc 一致），构建阶段用 Piper 生成语音，并把产物作为 GitHub Release 附件发布。
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+发布完成后，可以直接在 Pi 上下载（以 v0.1.0 为例）：
+
+```bash
+wget https://github.com/caiguanhao/keyboard-voice/releases/download/v0.1.0/keyboard-voice-v0.1.0-linux-aarch64
+chmod +x keyboard-voice-v0.1.0-linux-aarch64
+./keyboard-voice-v0.1.0-linux-aarch64
 ```
 
 ## 操作
