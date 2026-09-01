@@ -1,0 +1,78 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build for Raspberry Pi OS 64-bit
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: rust:bookworm
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            pkg-config espeak-ng python3 python3-venv \
+            libasound2-dev libx11-dev libxkbcommon-dev \
+            libx11-xcb-dev libxcb1-dev libxcb-render0-dev libxcb-shape0-dev \
+            libxcb-xfixes0-dev libxcb-keysyms1-dev libxkbcommon-x11-dev \
+            libwayland-dev libegl1-mesa-dev libgl1-mesa-dev libudev-dev
+          rm -rf /var/lib/apt/lists/*
+
+      - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Piper TTS
+        run: |
+          python3 -m venv /opt/piper
+          /opt/piper/bin/pip install --upgrade pip
+          /opt/piper/bin/pip install piper-tts
+          echo "/opt/piper/bin" >> "$GITHUB_PATH"
+
+      - name: Download Piper voice model
+        run: |
+          mkdir -p models
+          python3 -m piper.download_voices --data-dir models en_US-lessac-medium
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Verify target architecture
+        run: readelf -h target/release/keyboard-voice | grep -E 'Class|Machine'
+
+      - name: Package artifact
+        run: |
+          mkdir -p dist
+          cp target/release/keyboard-voice "dist/keyboard-voice-${GITHUB_REF_NAME}-linux-aarch64"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keyboard-voice-linux-aarch64
+          path: dist/keyboard-voice-*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: keyboard-voice-linux-aarch64
+          path: dist
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "${GITHUB_REF_NAME}" --generate-notes dist/keyboard-voice-*
