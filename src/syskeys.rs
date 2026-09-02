@@ -5,6 +5,7 @@
 //! Everywhere else this is a no-op stub.
 
 use crate::keymap::KeySpec;
+use eframe::egui::Context;
 use std::sync::mpsc::Receiver;
 
 pub struct SysKeys {
@@ -18,7 +19,7 @@ impl SysKeys {
 }
 
 #[cfg(not(target_os = "linux"))]
-pub fn start() -> (SysKeys, Option<String>) {
+pub fn start(_ctx: Context) -> (SysKeys, Option<String>) {
     let (_, receiver) = std::sync::mpsc::channel();
     (SysKeys { receiver }, None)
 }
@@ -30,6 +31,7 @@ pub use linux::start;
 mod linux {
     use super::SysKeys;
     use crate::keymap::{system_key_spec, KeySpec, SystemKey};
+    use eframe::egui::Context;
     use evdev::{Device, EventSummary, KeyCode};
     use std::{
         collections::HashSet,
@@ -58,11 +60,11 @@ mod linux {
         KeyCode::KEY_FN,
     ];
 
-    pub fn start() -> (SysKeys, Option<String>) {
+    pub fn start(ctx: Context) -> (SysKeys, Option<String>) {
         let (sender, receiver) = channel::<KeySpec>();
         let opened = Arc::new(Mutex::new(HashSet::new()));
         let debug = std::env::var_os("KEYBOARD_DEBUG").is_some();
-        let first_scan = scan(&sender, &opened, debug);
+        let first_scan = scan(&sender, &opened, debug, &ctx);
         let warning = if first_scan == 0 {
             Some(
                 "Special keys unavailable: cannot read /dev/input (add the user to the `input` group)"
@@ -75,7 +77,7 @@ mod linux {
             .name("keyboard-voice-syskeys".into())
             .spawn(move || loop {
                 thread::sleep(RESCAN_INTERVAL);
-                scan(&sender, &opened, debug);
+                scan(&sender, &opened, debug, &ctx);
             })
             .expect("spawn syskeys thread");
         (SysKeys { receiver }, warning)
@@ -87,6 +89,7 @@ mod linux {
         sender: &Sender<KeySpec>,
         opened: &Arc<Mutex<HashSet<PathBuf>>>,
         debug: bool,
+        ctx: &Context,
     ) -> usize {
         let mut count = 0;
         for (path, device) in evdev::enumerate() {
@@ -108,12 +111,13 @@ mod linux {
             }
             let sender = sender.clone();
             let opened_clone = Arc::clone(opened);
+            let reader_ctx = ctx.clone();
             let spawned = thread::Builder::new()
                 .name(format!("keyboard-voice-syskeys-{}", path.display()))
                 .spawn({
                     let path = path.clone();
                     move || {
-                        read_device(device, &sender, debug);
+                        read_device(device, &sender, debug, &reader_ctx);
                         opened_clone.lock().unwrap().remove(&path);
                     }
                 });
@@ -131,7 +135,7 @@ mod linux {
         count
     }
 
-    fn read_device(mut device: Device, sender: &Sender<KeySpec>, debug: bool) {
+    fn read_device(mut device: Device, sender: &Sender<KeySpec>, debug: bool, ctx: &Context) {
         loop {
             match device.fetch_events() {
                 Ok(events) => {
@@ -147,6 +151,8 @@ mod linux {
                                         if sender.send(system_key_spec(key)).is_err() {
                                             return; // the app is gone
                                         }
+                                        // evdev events don't wake egui on their own.
+                                        ctx.request_repaint();
                                     }
                                 }
                             }

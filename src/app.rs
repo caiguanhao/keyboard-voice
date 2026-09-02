@@ -23,9 +23,9 @@ pub struct KeyboardApp {
 }
 
 impl KeyboardApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let (settings, settings_warning) = Settings::load();
-        let (syskeys, syskeys_warning) = syskeys::start();
+        let (syskeys, syskeys_warning) = syskeys::start(cc.egui_ctx.clone());
         let warning = settings_warning.or(syskeys_warning);
         Self {
             settings,
@@ -59,7 +59,7 @@ impl KeyboardApp {
     }
 
     fn process_input(&mut self, ctx: &egui::Context) {
-        let (keys, text_keys, modifiers, should_quit, focused) = ctx.input(|input| {
+        let (keys, text_keys, modifiers, should_quit) = ctx.input(|input| {
             let mut keys = Vec::new();
             let mut text_keys = Vec::new();
             let mut physical_keys = Vec::new();
@@ -100,7 +100,7 @@ impl KeyboardApp {
                     }
                 }
             }
-            (keys, text_keys, input.modifiers, should_quit, input.focused)
+            (keys, text_keys, input.modifiers, should_quit)
         });
 
         if should_quit {
@@ -109,12 +109,12 @@ impl KeyboardApp {
         }
 
         // Keys egui never reports (PrtSc/ScrLk/Pause/Caps/Num/Win/Fn) arrive
-        // from the evdev reader on Linux. evdev sees the keyboard regardless
-        // of window focus, so only react while this window is focused.
-        if focused {
-            while let Some(spec) = self.syskeys.try_recv() {
-                self.show_key(spec);
-            }
+        // from the evdev reader on Linux. evdev is global, so these register
+        // even when the window is unfocused — which is exactly when PrtSc's
+        // desktop screenshot binding fires. The reader requests a repaint for
+        // each event, so this drain runs immediately.
+        while let Some(spec) = self.syskeys.try_recv() {
+            self.show_key(spec);
         }
 
         // Text events contain the final character after keyboard layout and
