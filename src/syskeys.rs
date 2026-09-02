@@ -48,6 +48,7 @@ mod linux {
     /// as a keyboard worth reading.
     const TARGET_KEYS: &[KeyCode] = &[
         KeyCode::KEY_SYSRQ,
+        KeyCode::KEY_PRINT,
         KeyCode::KEY_SCROLLLOCK,
         KeyCode::KEY_PAUSE,
         KeyCode::KEY_CAPSLOCK,
@@ -60,7 +61,8 @@ mod linux {
     pub fn start() -> (SysKeys, Option<String>) {
         let (sender, receiver) = channel::<KeySpec>();
         let opened = Arc::new(Mutex::new(HashSet::new()));
-        let first_scan = scan(&sender, &opened);
+        let debug = std::env::var_os("KEYBOARD_DEBUG").is_some();
+        let first_scan = scan(&sender, &opened, debug);
         let warning = if first_scan == 0 {
             Some(
                 "Special keys unavailable: cannot read /dev/input (add the user to the `input` group)"
@@ -73,7 +75,7 @@ mod linux {
             .name("keyboard-voice-syskeys".into())
             .spawn(move || loop {
                 thread::sleep(RESCAN_INTERVAL);
-                scan(&sender, &opened);
+                scan(&sender, &opened, debug);
             })
             .expect("spawn syskeys thread");
         (SysKeys { receiver }, warning)
@@ -81,7 +83,11 @@ mod linux {
 
     /// Opens every not-yet-opened keyboard device and spawns a reader thread
     /// for it. Returns how many keyboards are open after the scan.
-    fn scan(sender: &Sender<KeySpec>, opened: &Arc<Mutex<HashSet<PathBuf>>>) -> usize {
+    fn scan(
+        sender: &Sender<KeySpec>,
+        opened: &Arc<Mutex<HashSet<PathBuf>>>,
+        debug: bool,
+    ) -> usize {
         let mut count = 0;
         for (path, device) in evdev::enumerate() {
             let has_target_key = device
@@ -94,6 +100,12 @@ mod linux {
                 count += 1; // already open
                 continue;
             }
+            if debug {
+                eprintln!(
+                    "keyboard-voice debug: reading special keys from {}",
+                    path.display()
+                );
+            }
             let sender = sender.clone();
             let opened_clone = Arc::clone(opened);
             let spawned = thread::Builder::new()
@@ -101,7 +113,7 @@ mod linux {
                 .spawn({
                     let path = path.clone();
                     move || {
-                        read_device(device, &sender);
+                        read_device(device, &sender, debug);
                         opened_clone.lock().unwrap().remove(&path);
                     }
                 });
@@ -119,18 +131,30 @@ mod linux {
         count
     }
 
-    fn read_device(mut device: Device, sender: &Sender<KeySpec>) {
+    fn read_device(mut device: Device, sender: &Sender<KeySpec>, debug: bool) {
         loop {
             match device.fetch_events() {
                 Ok(events) => {
                     for event in events {
-                        // Value 1 is a press; ignore releases (0) and repeats (2).
-                        if let EventSummary::Key(_, code, 1) = event.destructure() {
-                            if let Some(key) = system_key_for(code) {
-                                if sender.send(system_key_spec(key)).is_err() {
-                                    return; // the app is gone
+                        match event.destructure() {
+                            EventSummary::Key(_, code, value) => {
+                                if debug && value == 1 {
+                                    eprintln!("keyboard-voice debug: key {code:?} pressed");
+                                }
+                                // Value 1 is a press; ignore releases (0) and repeats (2).
+                                if value == 1 {
+                                    if let Some(key) = system_key_for(code) {
+                                        if sender.send(system_key_spec(key)).is_err() {
+                                            return; // the app is gone
+                                        }
+                                    }
                                 }
                             }
+                            // Scan events carry the raw scancode of unknown keys.
+                            EventSummary::Misc(_, code, value) if debug => {
+                                eprintln!("keyboard-voice debug: misc {code:?} value {value}");
+                            }
+                            _ => {}
                         }
                     }
                 }
@@ -142,7 +166,9 @@ mod linux {
 
     fn system_key_for(code: KeyCode) -> Option<SystemKey> {
         Some(match code {
-            KeyCode::KEY_SYSRQ => SystemKey::PrintScreen,
+            // Most keyboards report Print Screen as KEY_SYSRQ; some emit the
+            // HID consumer-page "AC Print" code instead.
+            KeyCode::KEY_SYSRQ | KeyCode::KEY_PRINT => SystemKey::PrintScreen,
             KeyCode::KEY_SCROLLLOCK => SystemKey::ScrollLock,
             KeyCode::KEY_PAUSE => SystemKey::Pause,
             KeyCode::KEY_CAPSLOCK => SystemKey::CapsLock,

@@ -172,6 +172,7 @@ chmod +x keyboard-voice-v0.1.0-linux-aarch64
 
 - 按下任意标准键即可显示并朗读；自动重复事件会被忽略。
 - 支持 PrtSc、ScrLk、Pause、Caps Lock、Num Lock、Win 键（Linux 上经 evdev 读取）。Fn 键只有在键盘硬件本身会上报扫描码时才有响应。
+- 排查无响应的按键：在终端用 `KEYBOARD_DEBUG=1 ./keyboard-voice` 启动，按键的 evdev 键码会打印到终端。
 - 键名上方会显示一个随主题变化的立体键帽图标。
 - `Esc` 朗读为 `Escape`；`Insert`、`Delete`、`Page Up`、`Page Down` 显示为 `Ins`、`Del`、`PgUp`、`PgDn`。
 - macOS 的 Command 键显示并朗读为 `Command`。
