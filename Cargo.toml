@@ -1,6 +1,6 @@
 [package]
 name = "keyboard-voice"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 description = "A fullscreen keyboard visualizer with offline English key names"
 license = "MIT"

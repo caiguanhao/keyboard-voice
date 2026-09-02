@@ -177,4 +177,5 @@ chmod +x keyboard-voice-v0.1.0-linux-aarch64
 - `Esc` 朗读为 `Escape`；`Insert`、`Delete`、`Page Up`、`Page Down` 显示为 `Ins`、`Del`、`PgUp`、`PgDn`。
 - macOS 的 Command 键显示并朗读为 `Command`。
 - `Ctrl+Q` 退出程序。
-- 右上角按钮切换 Auto、Light、Dark，选择会保存到用户配置目录。
+- `Ctrl+T` 在 Auto、Light、Dark 之间循环切换主题。
+- 右上角按钮也可以切换 Auto、Light、Dark，选择会保存到用户配置目录。主题按钮不参与 Tab 焦点，Tab/Enter 始终用于发声。

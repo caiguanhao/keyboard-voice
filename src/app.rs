@@ -58,12 +58,22 @@ impl KeyboardApp {
         }
     }
 
+    fn cycle_theme(&mut self) {
+        let next = match self.settings.theme {
+            ThemeMode::Auto => ThemeMode::Light,
+            ThemeMode::Light => ThemeMode::Dark,
+            ThemeMode::Dark => ThemeMode::Auto,
+        };
+        self.set_theme(next);
+    }
+
     fn process_input(&mut self, ctx: &egui::Context) {
-        let (keys, text_keys, modifiers, should_quit) = ctx.input(|input| {
+        let (keys, text_keys, modifiers, should_quit, cycle_theme) = ctx.input(|input| {
             let mut keys = Vec::new();
             let mut text_keys = Vec::new();
             let mut physical_keys = Vec::new();
             let mut should_quit = false;
+            let mut cycle_theme = false;
             for event in &input.events {
                 match event {
                     Event::Key {
@@ -75,6 +85,8 @@ impl KeyboardApp {
                     } => {
                         if *key == Key::Q && input.modifiers.ctrl {
                             should_quit = true;
+                        } else if *key == Key::T && input.modifiers.ctrl {
+                            cycle_theme = true;
                         } else {
                             physical_keys.push((*key, *event_modifiers));
                         }
@@ -100,11 +112,16 @@ impl KeyboardApp {
                     }
                 }
             }
-            (keys, text_keys, input.modifiers, should_quit)
+            (keys, text_keys, input.modifiers, should_quit, cycle_theme)
         });
 
         if should_quit {
             ctx.send_viewport_cmd(ViewportCommand::Close);
+            return;
+        }
+
+        if cycle_theme {
+            self.cycle_theme();
             return;
         }
 
@@ -162,7 +179,10 @@ impl KeyboardApp {
 
     fn theme_button(&mut self, ui: &mut egui::Ui, theme: ThemeMode, tooltip: &str) {
         let selected = self.settings.theme == theme;
-        let (rect, response) = ui.allocate_exact_size(Vec2::splat(42.0), Sense::click());
+        // Sense::CLICK instead of Sense::click(): the theme buttons stay
+        // clickable but are excluded from the Tab focus order, so Tab+Enter
+        // keeps speaking keys instead of toggling the theme.
+        let (rect, response) = ui.allocate_exact_size(Vec2::splat(42.0), Sense::CLICK);
         let center = rect.center();
         let hovered = response.hovered();
         let dark = self.effective_dark();
